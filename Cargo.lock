@@ -6,7 +6,7 @@ version = 3
 name = "Rust_Calculator"
 version = "0.1.0"
 dependencies = [
- "fasteval",
+ "lalrpop-util",
  "num",
 ]
 
@@ -17,10 +17,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
-name = "fasteval"
-version = "0.2.4"
+name = "lalrpop-util"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f4cdac9e4065d7c48e30770f8665b8cef9a3a73a63a4056a33a5f395bc7cf75"
+checksum = "3f35c735096c0293d313e8f2a641627472b83d01b937177fe76e5e2708d31e0d"
 
 [[package]]
 name = "num"
