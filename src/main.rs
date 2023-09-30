@@ -1,81 +1,123 @@
-// add the following line to your Cargo.toml: lalrpop-util = "0.20.0"
-use lalrpop_util::lalrpop_mod;
-use std::collections::HashMap;
-use std::io::Write;
+use std::io;
 
-lalrpop_mod!(pub calculator);
-
-// 定义枚举类型
-#[derive(Debug)]
-pub enum Expr{
+enum Token {
+    Op(char),
     Num(f64),
-    Add(Box<Expr>, Box<Expr>),
-    Sub(Box<Expr>, Box<Expr>),
-    Mul(Box<Expr>, Box<Expr>),
-    Div(Box<Expr>, Box<Expr>),
-    Pow(Box<Expr>, Box<Expr>),
-    Var(String),
-    Assign(String, Box<Expr>),
 }
 
-// 定义函数
-pub fn eval(expr: Expr, env:&mut HashMap<String, f64>) -> Result<f64, Sting> {
-    match expr{
-        // 检测是否为数字
-        Expr::Num(n) => Ok(n),
-        // 检测为加法 递归地求二者操作数 返回和
-        Expr::Add(e1, e2) =>{
-            let n1 = eval(*e1, env)?;
-            let n2 = eval(*e2, env)?;
-            Ok(n1 + n2)
+// 将输入的字符串转换为Token类型的向量
+fn tokenize(input: &str) -> Vec<Token> {
+    let mut tokens = Vec::new();
+    let mut number = String::new();
+    for c in input.chars() {
+        // 忽略空格
+        if c == ' ' {
+            continue;
         }
-
-        // 检测为减法 返回差
-        Expr::Sub(e1, e2) =>{
-            let n1 = eval(*e1, env)?;
-            let n2 = eval(*e2, env)?;
-            Ok(n1 - n2)
+        if c.is_digit(10) || c == '.' {
+            number.push(c);
+        } else {
+            if !number.is_empty() {
+                tokens.push(Token::Num(number.parse().unwrap()));
+                number.clear();
+            }
+            tokens.push(Token::Op(c));
         }
+    }
+    if !number.is_empty() {
+        tokens.push(Token::Num(number.parse().unwrap()));
+    }
+    tokens
+}
 
-        // 检测为乘法 返回积
-        Expr::Mul(e1, e2) =>{
-            let n1 = eval(*e1, env)?;
-            let n2 = eval(*e2, env)?;
-            Ok(n1 * n2)
-        }
+// 比较运算符的优先级
+fn precedence(op: char) -> i32 {
+    match op {
+        '+' | '-' => 1,
+        '*' | '/' => 2,
+        '^' => 3,
+        _ => panic!("Invalid operator"),
+    }
+}
 
-        // 检测为除法 返回商
-        Expr::Div(e1, e2) => {
-            let n1 = eval(*e1, env)?;
-            let n2 = eval(*e2, env)?;
-            if n2 == 0.0 {
-                Err("除数不能除零".to_string())
-            } else {
-                Ok(n1 / n2)
+// 定义一个函数，根据运算符和两个操作数计算结果，并返回f64类型的值
+fn evaluate(op: char, a: f64, b: f64) -> f64 {
+    match op {
+        '+' => a + b,
+        '-' => a - b,
+        '*' => a * b,
+        '/' => a / b,
+        '^' => a.powf(b),
+        _ => panic!("Invalid operator"),
+    }
+}
+
+// 将Token向量转换为逆波兰表达式并返回Token向量
+fn to_rpn(tokens: Vec<Token>) -> Vec<Token> {
+    let mut rpn = Vec::new();
+    let mut stack = Vec::new();
+    for token in tokens {
+        match token {
+            Token::Num(n) => rpn.push(Token::Num(n)),
+            Token::Op(c) => {
+                while let Some(Token::Op(top)) = stack.last() {
+                    if precedence(*top) >= precedence(c) {
+                        rpn.push(stack.pop().unwrap());
+                    } else {
+                        break;
+                    }
+                }
+                stack.push(Token::Op(c));
             }
         }
+    }
+    while let Some(token) = stack.pop() {
+        rpn.push(token);
+    }
+    rpn
+}
 
-        // 检测为幂运算 返回第一个操作数的第二个操作数次方
-        Expr::Pow(e1, e2) =>{
-            let n1 = eval(*e1, env)?;
-            let n2 = eval(*e2, env)?;
-            Ok(n1.powf(n2))
-        }
-        
-        // 检测为变量 环境中查找值 返回值
-        Expr::Var(name) =>{
-            if let Some(value) = env.get(&name) {
-                Ok(*value)
-            } else {
-                Err(format!("未定义变量: {}", name))
+// 根据逆波兰表达式计算结果 返回一个f64类型的值
+fn calculate(rpn: Vec<Token>) -> f64 {
+    let mut stack = Vec::new();
+    for token in rpn {
+        match token {
+            Token::Num(n) => stack.push(n),
+            Token::Op(c) => {
+                let b = stack.pop().unwrap();
+                let a = stack.pop().unwrap();
+                stack.push(evaluate(c, a, b));
             }
         }
+    }
+    if stack.len() == 1 {
+        stack.pop().unwrap()
+    } else {
+        // 否则抛出异常
+        panic!("Invalid expression");
+    }
+}
 
-        // 检测为赋值 将值存储在环境中与左边的变量名对应 返回值
-        Expr::Assign(name, e) =>{
-            let value = eval(*e, env)?;
-            env.insert(name, value);
-            Ok(value)
+fn main() {
+    // 创建循环 计算结果
+    loop {
+        println!("Enter the equation or enter 'quit' to exit:");
+        // 创建一个空的字符串，用于存储用户的输入
+        let mut input = String::new();
+        // 从标准输入读取一行数据 并将其存入input字符串中 如果读取失败，则打印错误信息并退出程序
+        io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read line!");
+        input = input.trim().to_string();
+        // 如果输入的字符串为空 跳出本次循环 进行下一次循环
+        if input.is_empty() {
+            continue;
         }
+        if input == "quit" {
+            break;
+        }
+        let tokens = tokenize(&input);
+        let rpn = to_rpn(tokens);
+        println!("The result is: {}", calculate(rpn));
     }
 }
